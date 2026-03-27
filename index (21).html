@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Boodschappen" />
+  <meta name="theme-color" content="#f5f4f0" />
+  <title>Boodschappen</title>
+
+  <script>
+    // Generate icon & manifest
+    function generateIcon(size) {
+      const canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#db4035";
+      const r = size * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(r, 0); ctx.lineTo(size - r, 0);
+      ctx.quadraticCurveTo(size, 0, size, r);
+      ctx.lineTo(size, size - r);
+      ctx.quadraticCurveTo(size, size, size - r, size);
+      ctx.lineTo(r, size);
+      ctx.quadraticCurveTo(0, size, 0, size - r);
+      ctx.lineTo(0, r);
+      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold ${size * 0.52}px 'Sora', sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("B", size / 2, size / 2 + size * 0.03);
+      return canvas.toDataURL("image/png");
+    }
+
+    window.addEventListener("load", () => {
+      const icon192 = generateIcon(192);
+      const icon512 = generateIcon(512);
+      const manifest = {
+        name: "Boodschappen", short_name: "Boodschappen",
+        start_url: "./", display: "standalone",
+        background_color: "#f5f4f0", theme_color: "#f5f4f0",
+        icons: [
+          { src: icon192, sizes: "192x192", type: "image/png" },
+          { src: icon512, sizes: "512x512", type: "image/png" },
+        ],
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
+      const link = document.createElement("link");
+      link.rel = "manifest"; link.href = URL.createObjectURL(blob);
+      document.head.appendChild(link);
+      const apple = document.createElement("link");
+      apple.rel = "apple-touch-icon"; apple.href = icon192;
+      document.head.appendChild(apple);
+    });
+
+    // Register real SW file (required for GitHub Pages)
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f4f0; --card: #fff; --text: #1f1f1f;
+      --muted: #bbb; --border: #f0f0f0; --hover: #fafafa;
+      --font: 'Sora', sans-serif;
+    }
+    body {
+      font-family: var(--font); background: var(--bg);
+      min-height: 100vh; min-height: -webkit-fill-available;
+      display: flex; justify-content: center;
+      padding: max(52px, env(safe-area-inset-top)) 20px 80px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app { width: 100%; max-width: 400px; }
+    h1 { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; margin-bottom: 24px; }
+
+    .card {
+      background: var(--card); border-radius: 10px; padding: 20px 16px 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 6px 20px rgba(0,0,0,0.04);
+    }
+
+    .section { margin-bottom: 28px; }
+
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 8px 10px; margin-bottom: 2px;
+      border-bottom: 2px solid var(--section-color);
+    }
+    .section-title { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.1px; }
+    .section-count { font-size: 12px; color: var(--muted); }
+
+    .item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 8px; border-bottom: 1px solid var(--border);
+      cursor: pointer; border-radius: 4px; transition: background 0.1s;
+      animation: fadeIn 0.15s ease both;
+    }
+    .item:hover { background: var(--hover); }
+    .item:hover .del-btn { opacity: 1; }
+    .check-wrap { flex-shrink: 0; width: 18px; height: 18px; cursor: pointer; }
+    .item-text { flex: 1; font-size: 14px; color: var(--text); line-height: 1.4; transition: color 0.15s; user-select: none; }
+    .item-text.done { color: var(--muted); text-decoration: line-through; }
+
+    .del-btn {
+      background: none; border: none; cursor: pointer; color: #ccc;
+      padding: 2px 3px; border-radius: 4px; display: flex; align-items: center;
+      opacity: 0; transition: opacity 0.15s, color 0.15s;
+    }
+    .del-btn:hover { color: #e74c3c; }
+
+    .add-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 8px; background: none; border: none;
+      cursor: pointer; width: 100%; border-radius: 4px; transition: background 0.1s;
+    }
+    .add-row:hover { background: var(--hover); }
+    .add-row:hover .add-label { color: var(--section-color); }
+    .add-row:hover .add-icon { stroke: var(--section-color); }
+    .add-label { font-family: var(--font); font-size: 14px; color: var(--muted); transition: color 0.15s; }
+
+    .add-input-row { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-bottom: 1px solid var(--border); }
+    .add-input { flex: 1; border: none; outline: none; font-family: var(--font); font-size: 14px; color: var(--text); background: transparent; }
+
+    .completed-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 16px 8px 4px;
+    }
+    .completed-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600; }
+
+    .wis-btn {
+      background: none; border: none; cursor: pointer;
+      font-family: var(--font); font-size: 11px;
+      color: var(--muted); padding: 2px 6px; border-radius: 4px;
+      transition: background 0.1s, color 0.15s;
+    }
+    .wis-btn:hover { background: #fee2e2; color: #e74c3c; }
+
+    .status-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px; color: var(--muted); min-height: 28px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; transition: background 0.3s; }
+    .dot.online  { background: #22c55e; }
+    .dot.syncing { background: #f59e0b; animation: pulse 1s infinite; }
+    .dot.error   { background: #e74c3c; }
+
+    @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:.3} }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(3px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+<div class="app">
+  <h1>Boodschappen</h1>
+  <div class="card">
+    <div class="section" id="section-vrijdag" style="--section-color:#db4035"></div>
+    <div class="section" id="section-vergeten" style="--section-color:#246fe0"></div>
+  </div>
+  <div class="status-bar">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">Verbinden...</span>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://bdotejyqbtjhgczwzrzh.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkb3RlanlxYnRqaGdjend6cnpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTY1ODgsImV4cCI6MjA5MDE5MjU4OH0.cHjdF-BXHWxm9mO-5GtXbvpFYux4n1XpXcTIuElroco";
+
+const SECTIONS = [
+  { id: "vrijdag", title: "Kopen op vrijdag", color: "#db4035" },
+  { id: "vergeten", title: "Nog vergeten",    color: "#246fe0" },
+];
+
+let state = { vrijdag: [], vergeten: [] };
+let activeInput = null; // tracks which lijst has open input, blocks polling re-render
+let pollTimer = null;
+
+async function api(path, options = {}) {
+  const res = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
+      "Content-Type": "application/json",
+      "Prefer": options.prefer || "return=representation",
+    },
+    ...options,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function loadAll(silent = false) {
+  if (!silent) setStatus("syncing", "Laden...");
+  try {
+    const rows = await api("items?order=created_at.asc");
+    state.vrijdag = rows.filter(r => r.lijst === "vrijdag");
+    state.vergeten = rows.filter(r => r.lijst === "vergeten");
+    // Don't re-render if user has an input open (prevents wiping the input field)
+    if (!activeInput) render();
+    setStatus("online", "Gesynchroniseerd");
+  } catch(e) { setStatus("error", "Geen verbinding"); }
+}
+
+async function addItem(lijst, text) {
+  setStatus("syncing", "Opslaan...");
+  try {
+    const [row] = await api("items", { method: "POST", body: JSON.stringify({ lijst, text, done: false }) });
+    state[lijst].push(row);
+    render();
+    setStatus("online", "Gesynchroniseerd");
+  } catch(e) { setStatus("error", "Opslaan mislukt"); }
+}
+
+async function toggleItem(lijst, id, done) {
+  // Optimistic update
+  state[lijst] = state[lijst].map(i => i.id === id ? { ...i, done } : i);
+  render();
+  setStatus("syncing", "Opslaan...");
+  try {
+    await api(`items?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ done }), prefer: "return=minimal" });
+    setStatus("online", "Gesynchroniseerd");
+  } catch(e) {
+    state[lijst] = state[lijst].map(i => i.id === id ? { ...i, done: !done } : i);
+    render();
+    setStatus("error", "Opslaan mislukt");
+  }
+}
+
+async function removeItem(lijst, id) {
+  const backup = [...state[lijst]];
+  state[lijst] = state[lijst].filter(i => i.id !== id);
+  render();
+  setStatus("syncing", "Verwijderen...");
+  try {
+    await api(`items?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+    setStatus("online", "Gesynchroniseerd");
+  } catch(e) { state[lijst] = backup; render(); setStatus("error", "Verwijderen mislukt"); }
+}
+
+async function wisAfgevinkte(lijst) {
+  const toDelete = state[lijst].filter(i => i.done);
+  if (!toDelete.length) return;
+  const backup = [...state[lijst]];
+  state[lijst] = state[lijst].filter(i => !i.done);
+  render();
+  setStatus("syncing", "Verwijderen...");
+  try {
+    // UUIDs don't need quotes in Supabase in.() filter
+    const ids = toDelete.map(i => i.id).join(",");
+    await api(`items?id=in.(${ids})`, { method: "DELETE", prefer: "return=minimal" });
+    setStatus("online", "Gesynchroniseerd");
+  } catch(e) { state[lijst] = backup; render(); setStatus("error", "Verwijderen mislukt"); }
+}
+
+function setStatus(type, text) {
+  document.getElementById("status-dot").className = "dot " + type;
+  document.getElementById("status-text").textContent = text;
+}
+
+function render() {
+  SECTIONS.forEach(sec => {
+    const el = document.getElementById("section-" + sec.id);
+    const items = state[sec.id];
+    const active = items.filter(i => !i.done);
+    const done = items.filter(i => i.done);
+
+    el.innerHTML = `
+      <div class="section-header">
+        <span class="section-title">${sec.title}</span>
+        <span class="section-count">${done.length}/${items.length}</span>
+      </div>
+      <div id="active-${sec.id}"></div>
+      <div id="add-area-${sec.id}"></div>
+      <div id="done-${sec.id}"></div>
+    `;
+
+    active.forEach(item => document.getElementById("active-" + sec.id).appendChild(makeItem(sec.id, item)));
+    renderAddRow(sec.id, sec.color);
+
+    const doneEl = document.getElementById("done-" + sec.id);
+    if (done.length) {
+      const header = document.createElement("div");
+      header.className = "completed-header";
+      header.innerHTML = `
+        <span class="completed-label">Afgerond</span>
+        <button class="wis-btn" id="wis-${sec.id}">Wis afgevinkte</button>
+      `;
+      doneEl.appendChild(header);
+      document.getElementById("wis-" + sec.id).addEventListener("click", () => wisAfgevinkte(sec.id));
+      done.forEach(item => doneEl.appendChild(makeItem(sec.id, item)));
+    }
+  });
+}
+
+function makeItem(lijst, item) {
+  const color = SECTIONS.find(s => s.id === lijst).color;
+  const div = document.createElement("div");
+  div.className = "item";
+  div.innerHTML = `
+    <div class="check-wrap">${checkSVG(item.done, color)}</div>
+    <span class="item-text ${item.done ? "done" : ""}">${esc(item.text)}</span>
+    <button class="del-btn">${trashSVG()}</button>
+  `;
+  div.querySelector(".check-wrap").addEventListener("click", () => toggleItem(lijst, item.id, !item.done));
+  div.querySelector(".item-text").addEventListener("click", () => toggleItem(lijst, item.id, !item.done));
+  div.querySelector(".del-btn").addEventListener("click", e => { e.stopPropagation(); removeItem(lijst, item.id); });
+  return div;
+}
+
+function renderAddRow(lijst, color) {
+  const area = document.getElementById("add-area-" + lijst);
+  area.innerHTML = "";
+  const btn = document.createElement("button");
+  btn.className = "add-row";
+  btn.style.setProperty("--section-color", color);
+  btn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 3v10M3 8h10" stroke="#ccc" stroke-width="1.5" stroke-linecap="round" class="add-icon"/>
+    </svg>
+    <span class="add-label">Toevoegen</span>
+  `;
+  btn.addEventListener("click", () => showInput(lijst, color, area));
+  area.appendChild(btn);
+}
+
+function showInput(lijst, color, area) {
+  activeInput = lijst; // block polling re-render
+  area.innerHTML = `
+    <div class="add-input-row">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="flex-shrink:0">
+        <circle cx="9" cy="9" r="8" stroke="#ddd" stroke-width="1.5"/>
+      </svg>
+      <input class="add-input" placeholder="Taak naam" style="caret-color:${color}" />
+    </div>
+  `;
+  const input = area.querySelector("input");
+  input.focus();
+
+  let committed = false;
+  const commit = () => {
+    if (committed) return; // FIX: prevent double-fire from Enter + blur
+    committed = true;
+    activeInput = null;
+    const t = input.value.trim();
+    if (t) addItem(lijst, t);
+    else renderAddRow(lijst, color);
+  };
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") commit();
+    if (e.key === "Escape") { committed = true; activeInput = null; renderAddRow(lijst, color); }
+  });
+  input.addEventListener("blur", commit);
+}
+
+function checkSVG(checked, color) {
+  return `<svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <circle cx="9" cy="9" r="8" stroke="${checked ? color : "#ccc"}" stroke-width="1.5" fill="${checked ? color : "transparent"}"/>
+    ${checked ? `<path d="M5.5 9l2.5 2.5 4.5-4.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
+  </svg>`;
+}
+
+function trashSVG() {
+  return `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M3.5 3.5l.7 7.3a.5.5 0 00.5.45h4.6a.5.5 0 00.5-.45l.7-7.3"
+      stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function esc(t) {
+  return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// Start polling — silent after first load
+loadAll();
+pollTimer = setInterval(() => loadAll(true), 10000);
+</script>
+</body>
+</html>
